@@ -1,23 +1,25 @@
-# Particle Game — Singularity
+# Particle — 7×7 chain reaction
 
-A small browser game built on actual particle physics. You are a gravity well: particles accelerate
-toward you (`F ∝ 1/r`), bend into orbits, collide, and merge — conserving momentum as they clump.
-Eat the clumps before the red anti-matter eats you.
+A two-player board game about particle physics you can play in a browser. Every cell holds
+particles, and a cell splits when it is full: **2** in a corner, **3** on an edge, **4** inside.
+A split fires one particle into each orthogonal neighbour and recolours it for the player who
+split — so one placement can cascade across the board.
 
-## Play
+## Rules
 
-- **Move** — mouse / touch drag, or `WASD` / arrow keys
-- **Overcharge** — hold the mouse button or `Space` to widen and strengthen your gravity well
-  (drains energy; it regenerates when you let go)
-- **Blue motes** — mass and score. Colliding motes merge into heavier ones worth more.
-- **Gold flares** — refill energy.
-- **Red anti-matter** — burns mass and dents your score. It resists your pull, but not enough.
+- Players alternate. On your turn place one particle in an empty cell, or in a cell you already own.
+- When a cell reaches capacity it splits: its particles are spent, and each orthogonal neighbour
+  gains one particle of your colour.
+- A cell that fills from a split splits as well — the whole wave resolves before the turn ends.
+- You lose when you have no particles left on the board. Wipe out the other colour to win.
 
-Mass reaching zero collapses you. Waves get denser and meaner every 13 seconds.
+The 7×7 board has 4 corner cells (capacity 2), 20 edge cells (capacity 3) and 25 interior cells
+(capacity 4). Corners are cheap to fire but easy to lose; interior cells hold more but need three
+placements to split.
 
 ## Run locally
 
-No build step, no dependencies — it's plain HTML/CSS/JS. Serve the folder:
+No build step and no dependencies — plain HTML, CSS and JavaScript. Serve the folder:
 
 ```sh
 python3 -m http.server 8000
@@ -26,9 +28,6 @@ python3 -m http.server 8000
 
 ## Deployment
 
-Every push to `main` runs `.github/workflows/pages.yml`, which copies the static files into `dist/`
-and publishes them with GitHub Actions Pages. The game is served at
+`.github/workflows/pages.yml` publishes `index.html`, `styles.css` and `game.js` to GitHub Pages on
+every push to `main` (and on manual dispatch). The live game is at
 `https://jason1015-coder.github.io/particle-game/`.
-
-Pages source must be **GitHub Actions** (the workflow enables this on first run); subsequent deploys
-need no manual setup.
