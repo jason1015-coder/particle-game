@@ -1,55 +1,1153 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Particle — 7×7 chain reaction</title>
-<meta name="description" content="A two-player chain reaction board game on a 7 by 7 grid: particles split when a cell fills and capture their neighbours." />
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>7×7 Board — Particle Game</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='7' fill='%23f7c948'/%3E%3C/svg%3E" />
+  <style>
+    :root {
+      --light: #e8d3b0;
+      --dark: #8a5a3b;
+      --frame: #3b2a20;
+      --page: #1c1917;
+      --near-fill: #f6f1e4;
+      --near-ink: #2a2118;
+      --far-fill: #262f3d;
+      --far-ink: #eef3fa;
+      --panel: #241f1b;
+      --panel-line: rgba(245, 239, 230, 0.12);
+      --accent: #f7c948;
+      --flash: #f08a3c;
+      --aim: #5cc8ff;
+      --win: #7ce38b;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; min-height: 100%; }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      padding: 2.5rem 1.25rem;
+      background: radial-gradient(circle at 50% 0%, #2b2724 0%, var(--page) 70%);
+      color: #f5efe6;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.15rem, 3vw, 1.6rem);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .stage {
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .board-wrap {
+      padding: 0.75rem;
+      border-radius: 10px;
+      background: var(--frame);
+      box-shadow:
+        0 18px 40px rgba(0, 0, 0, 0.55),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      grid-template-rows: repeat(7, 1fr);
+      width: min(80vw, 58vh, 470px);
+      aspect-ratio: 1 / 1;
+      border-radius: 4px;
+      overflow: hidden;
+      transition: transform 260ms ease;
+    }
+
+    /* Turning the board around swaps which side sits nearest the player. */
+    .board.flipped {
+      transform: rotate(180deg);
+      --flip: 180deg;
+    }
+
+    .board-tools {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 0.6rem;
+    }
+
+    .flip-btn {
+      font: inherit;
+      font-size: 0.78rem;
+      letter-spacing: 0.02em;
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid rgba(245, 239, 230, 0.22);
+      background: rgba(255, 255, 255, 0.06);
+      color: rgba(245, 239, 230, 0.8);
+      cursor: pointer;
+      transition: background 110ms ease, border-color 110ms ease;
+    }
+
+    .flip-btn:hover {
+      background: rgba(92, 200, 255, 0.16);
+      border-color: rgba(92, 200, 255, 0.45);
+    }
+
+    .flip-btn[aria-pressed="true"] {
+      background: rgba(92, 200, 255, 0.2);
+      border-color: rgba(92, 200, 255, 0.6);
+      color: #eaf7ff;
+    }
+
+    .cell {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+
+    .cell.light { background: var(--light); }
+    .cell.dark  { background: var(--dark); }
+
+    .cell.move::after,
+    .cell.annihilate::after,
+    .cell.aim::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .cell.move::after {
+      width: 26%;
+      aspect-ratio: 1 / 1;
+      background: rgba(24, 18, 12, 0.32);
+    }
+
+    .cell.annihilate::after {
+      width: 80%;
+      aspect-ratio: 1 / 1;
+      border: 3px dashed rgba(240, 138, 60, 0.95);
+    }
+
+    .cell.aim::after {
+      width: 84%;
+      aspect-ratio: 1 / 1;
+      border: 3px solid var(--aim);
+      background: rgba(92, 200, 255, 0.16);
+      box-shadow: 0 0 12px rgba(92, 200, 255, 0.5);
+    }
+
+    .cell.aim { cursor: pointer; }
+
+    .piece {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 82%;
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: 0.01em;
+      font-size: clamp(0.66rem, 2vw, 1rem);
+      transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
+      cursor: default;
+      /* --flip keeps glyphs upright when the board is turned around. */
+      transform: rotate(var(--flip, 0deg)) scale(var(--pop, 1));
+    }
+
+    .piece.movable { cursor: pointer; }
+    .piece.movable:hover { --pop: 1.06; }
+
+    .cell.selected .piece {
+      box-shadow: 0 0 0 3px var(--accent), 0 4px 10px rgba(0, 0, 0, 0.5);
+      --pop: 1.06;
+    }
+
+    .piece.near {
+      background: radial-gradient(circle at 32% 26%, #ffffff 0%, var(--near-fill) 55%, #ddd4c0 100%);
+      color: var(--near-ink);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(60, 45, 30, 0.35);
+    }
+
+    .piece.far {
+      background: radial-gradient(circle at 32% 26%, #46546b 0%, var(--far-fill) 55%, #161d27 100%);
+      color: var(--far-ink);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(220, 232, 250, 0.3);
+    }
+
+    .piece.neutral {
+      background: radial-gradient(circle at 32% 26%, #97a49a 0%, #5d6a61 55%, #333c36 100%);
+      color: #f2f7f1;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(235, 245, 235, 0.28);
+    }
+
+    /* Electrostatically bound: a player can never move it, though the field still can. */
+    .piece.stuck {
+      filter: saturate(0.45) brightness(0.82);
+      box-shadow:
+        0 0 0 2px rgba(240, 220, 120, 0.85),
+        0 3px 6px rgba(0, 0, 0, 0.45);
+    }
+
+    .piece sup, .piece sub {
+      position: relative;
+      margin-left: 0.04em;
+      font-size: 0.58em;
+    }
+
+    .piece sup { top: -0.42em; }
+    .piece sub { bottom: -0.32em; }
+
+    .piece .bar {
+      text-decoration: overline;
+      text-decoration-thickness: 1.5px;
+      padding-top: 0.02em;
+    }
+
+    /* ---------- side panel ---------- */
+    .panel {
+      width: min(100%, 22rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      background: var(--panel);
+      border: 1px solid var(--panel-line);
+      border-radius: 10px;
+      padding: 1rem 1rem 1.1rem;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .status {
+      margin: 0;
+      font-size: 0.9rem;
+      letter-spacing: 0.02em;
+      color: rgba(245, 239, 230, 0.7);
+    }
+
+    .status strong { color: var(--accent); font-weight: 600; }
+    .status .aimword { color: var(--aim); font-weight: 600; }
+
+    .result {
+      margin: 0;
+      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      background: rgba(124, 227, 139, 0.12);
+      border: 1px solid rgba(124, 227, 139, 0.5);
+      color: var(--win);
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.45;
+    }
+
+    .result span {
+      display: block;
+      font-weight: 400;
+      font-size: 0.76rem;
+      color: rgba(245, 239, 230, 0.6);
+      margin-top: 0.15rem;
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(245, 239, 230, 0.38);
+    }
+
+    .decay-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      max-height: 17rem;
+      overflow-y: auto;
+      padding-right: 0.2rem;
+    }
+
+    .group-label {
+      font-size: 0.66rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(245, 239, 230, 0.35);
+      margin: 0.4rem 0 0.1rem;
+    }
+
+    .decay-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.04);
+      color: inherit;
+      font: inherit;
+      font-size: 0.82rem;
+      text-align: left;
+      cursor: pointer;
+      transition: background 110ms ease, border-color 110ms ease;
+    }
+
+    .decay-row:hover:not(:disabled) {
+      background: rgba(92, 200, 255, 0.14);
+      border-color: rgba(92, 200, 255, 0.45);
+    }
+
+    .decay-row:disabled {
+      opacity: 0.42;
+      cursor: not-allowed;
+    }
+
+    .decay-row .products { white-space: nowrap; }
+    .decay-row .rate {
+      font-size: 0.72rem;
+      color: rgba(245, 239, 230, 0.5);
+      white-space: nowrap;
+    }
+
+    .row-note {
+      display: block;
+      font-size: 0.66rem;
+      color: rgba(245, 239, 230, 0.35);
+    }
+
+    .row-note.blocked { color: rgba(240, 138, 60, 0.85); }
+
+    .hint {
+      margin: 0;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: rgba(245, 239, 230, 0.45);
+    }
+
+    .hint strong { color: rgba(245, 239, 230, 0.8); font-weight: 600; }
+
+    .aim-box {
+      border: 1px solid rgba(92, 200, 255, 0.4);
+      border-radius: 8px;
+      padding: 0.7rem;
+      background: rgba(92, 200, 255, 0.08);
+    }
+
+    .aim-box p { margin: 0 0 0.45rem; font-size: 0.82rem; line-height: 1.5; }
+    .aim-box .target { font-size: 1rem; }
+
+    .ghost {
+      background: none;
+      border: 1px solid var(--panel-line);
+      color: rgba(245, 239, 230, 0.7);
+      border-radius: 6px;
+      padding: 0.35rem 0.65rem;
+      font: inherit;
+      font-size: 0.78rem;
+      cursor: pointer;
+    }
+
+    .ghost:hover { border-color: rgba(245, 239, 230, 0.35); color: #f5efe6; }
+
+    .log {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      font-size: 0.76rem;
+      line-height: 1.45;
+      color: rgba(245, 239, 230, 0.55);
+    }
+
+    .log li {
+      padding-left: 0.55rem;
+      border-left: 2px solid rgba(240, 138, 60, 0.5);
+    }
+
+    .log .nu { color: rgba(245, 239, 230, 0.35); display: block; }
+    .log .side-name { color: var(--accent); }
+
+    .legend {
+      margin: 0;
+      max-width: 42rem;
+      font-size: 0.74rem;
+      line-height: 1.65;
+      text-align: center;
+      color: rgba(245, 239, 230, 0.4);
+    }
+
+    .legend .dot {
+      display: inline-block; width: 0.45rem; height: 0.45rem;
+      margin: 0 0.25rem 0 0.7rem; border-radius: 50%;
+      background: rgba(24, 18, 12, 0.5); vertical-align: middle;
+    }
+
+    .legend .ring {
+      display: inline-block; width: 0.5rem; height: 0.5rem;
+      margin: 0 0.25rem 0 0.7rem; border-radius: 50%;
+      border: 2px dashed var(--flash); vertical-align: middle;
+    }
+  </style>
 </head>
 <body>
-  <main class="shell">
-    <header class="top">
-      <div class="brand">
-        <h1>Particle</h1>
-        <p class="sub">chain reaction · 7 × 7</p>
-      </div>
-      <button id="reset" class="ghost" type="button">Reset</button>
-    </header>
+  <h1>7 × 7 Board</h1>
 
-    <section class="players">
-      <div class="player p1" id="player-1">
-        <span class="swatch"></span>
-        <span class="pname">Cyan</span>
-        <span class="pcount" id="p1-count">0</span>
-      </div>
-      <p class="turn" id="turn">Cyan to move</p>
-      <div class="player p2" id="player-2">
-        <span class="swatch"></span>
-        <span class="pname">Amber</span>
-        <span class="pcount" id="p2-count">0</span>
-      </div>
-    </section>
-
+  <div class="stage">
     <div class="board-wrap">
-      <div id="grid" class="grid" role="grid" aria-label="7 by 7 particle board"></div>
+      <div class="board" id="board" role="grid" aria-label="7 by 7 particle board"></div>
+      <div class="board-tools">
+        <button class="flip-btn" id="flipBtn" type="button" aria-pressed="false">Flip board</button>
+      </div>
     </div>
 
-    <p class="rules">
-      Place a particle on an empty cell or one you already own. A cell splits when it is full —
-      <strong>2</strong> in a corner, <strong>3</strong> on an edge, <strong>4</strong> inside — firing one
-      particle into each neighbour and taking it over. Everyone plays on the same board, so a split can
-      cascade. Wipe out the other colour to win.
-    </p>
-  </main>
-
-  <div class="overlay hidden" id="overlay">
-    <div class="panel">
-      <h2 id="winner-text">Cyan wins</h2>
-      <button id="again" type="button">Play again</button>
-    </div>
+    <aside class="panel">
+      <div id="resultSlot"></div>
+      <p class="status" id="status" aria-live="polite"></p>
+      <div id="decayPanel"></div>
+      <p class="section-title">Event log</p>
+      <ul class="log" id="log"></ul>
+    </aside>
   </div>
 
-  <script src="game.js"></script>
+  <p class="legend">
+    Pieces move as queens and cannot pass through one another.
+    Antiparticle pairs (K<sup>0</sup>/<span style="text-decoration:overline">K</span><sup>0</sup>,
+    K<sup>+</sup>/K<sup>−</sup>, π<sup>+</sup>/π<sup>−</sup>, μ<sup>+</sup>/μ<sup>−</sup>, e<sup>+</sup>/e<sup>−</sup>)
+    annihilate on contact; π<sup>0</sup> has no partner, and γ leaves the board as light.
+    Repulsion reads the near ring — the eight squares a charged piece touches — and pushes a like charge found there one
+    square outward into the outer ring. Attraction reads the outer ring — the eight squares two steps out — and draws
+    an opposite charge found there one square inward into the near ring. Both happen at the same time, from the board
+    as it was before either moved, so a particle shoved outward and one drawn inward can trade squares. Opposite
+    charges already touching do not move, they bind; like charges in the outer ring do nothing. A step that would go
+    off the board, or onto a particle that is staying put, does not happen — nothing is rerouted or slid sideways.
+    Uncharged particles feel no field. Bound pieces are <em>stuck</em>: no player can move them again, but a later pull
+    or push still drags them, and they may still decay. A decay needs enough empty squares for every product.
+    <br>Win by annihilating the enemy K<sup>0</sup>, or by leaving them with no move and no decay at all.
+    <span class="dot"></span>move<span class="ring"></span>annihilate
+  </p>
+
+  <script>
+    // ---------------------------------------------------------------- species
+    // charge: +1, -1 or 0, used by the electrostatic rules.
+    const SPECIES = {
+      'kaon-zero':     { glyph: 'K<sup>0</sup>',                          label: 'kaon zero',      plain: 'K⁰',  anti: 'kaon-zero-bar', charge: 0 },
+      'kaon-zero-bar': { glyph: '<span class="bar">K</span><sup>0</sup>', label: 'anti-kaon zero', plain: 'K̄⁰', anti: 'kaon-zero',     charge: 0 },
+      'kaon-plus':     { glyph: 'K<sup>+</sup>',                          label: 'kaon plus',      plain: 'K⁺',  anti: 'kaon-minus',    charge: 1 },
+      'kaon-minus':    { glyph: 'K<sup>−</sup>',                          label: 'kaon minus',     plain: 'K⁻',  anti: 'kaon-plus',     charge: -1 },
+      'pion-plus':     { glyph: 'π<sup>+</sup>',                          label: 'pion plus',      plain: 'π⁺',  anti: 'pion-minus',    charge: 1 },
+      'pion-minus':    { glyph: 'π<sup>−</sup>',                          label: 'pion minus',     plain: 'π⁻',  anti: 'pion-plus',     charge: -1 },
+      'pion-zero':     { glyph: 'π<sup>0</sup>',                          label: 'pion zero',      plain: 'π⁰',  anti: null,            charge: 0 },
+      'muon-plus':     { glyph: 'μ<sup>+</sup>',                          label: 'antimuon',       plain: 'μ⁺',  anti: 'muon-minus',    charge: 1 },
+      'muon-minus':    { glyph: 'μ<sup>−</sup>',                          label: 'muon',           plain: 'μ⁻',  anti: 'muon-plus',     charge: -1 },
+      'positron':      { glyph: 'e<sup>+</sup>',                          label: 'positron',       plain: 'e⁺',  anti: 'electron',      charge: 1 },
+      'electron':      { glyph: 'e<sup>−</sup>',                          label: 'electron',       plain: 'e⁻',  anti: 'positron',      charge: -1 },
+    };
+
+    // Light and neutrinos are never placed on the board; the UI only reports them.
+    const OFF_BOARD = {
+      photon:    { glyph: 'γ',                                     plain: 'γ' },
+      nu_mu:     { glyph: 'ν<sub>μ</sub>',                          plain: 'ν_μ' },
+      nu_mu_bar: { glyph: '<span class="bar">ν</span><sub>μ</sub>', plain: 'ν̄_μ' },
+      nu_e:      { glyph: 'ν<sub>e</sub>',                          plain: 'ν_e' },
+      nu_e_bar:  { glyph: '<span class="bar">ν</span><sub>e</sub>', plain: 'ν̄_e' },
+    };
+
+    const particleOf = (id) => SPECIES[id] || OFF_BOARD[id];
+
+    const KS = 'K<sub>S</sub><sup>0</sup>';
+    const KL = 'K<sub>L</sub><sup>0</sup>';
+
+    // ---------------------------------------------------------------- decays
+    const DECAYS = {
+      'pion-plus': [
+        { products: ['muon-plus', 'nu_mu'], rate: '99.9877%', note: 'primary · helicity suppressed' },
+        { products: ['positron', 'nu_e'], rate: '0.0123%', note: 'rare electronic' },
+        { products: ['muon-plus', 'nu_mu', 'photon'], rate: '0.02%', note: 'radiative' },
+        { products: ['pion-zero', 'positron', 'nu_e'], rate: '1.036 × 10⁻⁸', note: 'pion beta decay' },
+        { products: ['positron', 'nu_e', 'positron', 'electron'], rate: '3.2 × 10⁻⁹', note: 'Dalitz-like leptonic' },
+      ],
+      'pion-minus': [
+        { products: ['muon-minus', 'nu_mu_bar'], rate: '99.9877%', note: 'primary · helicity suppressed' },
+        { products: ['electron', 'nu_e_bar'], rate: '0.0123%', note: 'rare electronic' },
+        { products: ['muon-minus', 'nu_mu_bar', 'photon'], rate: '0.02%', note: 'radiative' },
+        { products: ['pion-zero', 'electron', 'nu_e_bar'], rate: '1.036 × 10⁻⁸', note: 'pion beta decay' },
+        { products: ['electron', 'nu_e_bar', 'positron', 'electron'], rate: '3.2 × 10⁻⁹', note: 'Dalitz-like leptonic' },
+      ],
+      'pion-zero': [
+        { products: ['photon', 'photon'], rate: '98.823%', note: 'primary' },
+        { products: ['positron', 'electron', 'photon'], rate: '1.174%', note: 'Dalitz' },
+        { products: ['positron', 'electron', 'positron', 'electron'], rate: '3.34 × 10⁻⁵', note: 'double Dalitz' },
+        { products: ['positron', 'electron'], rate: '6.46 × 10⁻⁸', note: 'purely leptonic' },
+      ],
+      'kaon-plus': [
+        { products: ['muon-plus', 'nu_mu'], rate: '63.56%', note: 'Kμ2' },
+        { products: ['pion-plus', 'pion-zero'], rate: '20.67%', note: 'Kπ2' },
+        { products: ['pion-plus', 'pion-plus', 'pion-minus'], rate: '5.58%', note: 'τ mode' },
+        { products: ['pion-zero', 'positron', 'nu_e'], rate: '5.07%', note: 'Ke3' },
+        { products: ['pion-zero', 'muon-plus', 'nu_mu'], rate: '3.35%', note: 'Kμ3' },
+        { products: ['pion-plus', 'pion-zero', 'pion-zero'], rate: '1.76%', note: 'τ′ mode' },
+        { products: ['pion-plus', 'nu_mu', 'nu_mu_bar'], rate: '1.1 × 10⁻¹⁰', note: 'FCNC, ultra-rare' },
+      ],
+      'kaon-minus': [
+        { products: ['muon-minus', 'nu_mu_bar'], rate: '63.56%', note: 'Kμ2' },
+        { products: ['pion-minus', 'pion-zero'], rate: '20.67%', note: 'Kπ2' },
+        { products: ['pion-minus', 'pion-minus', 'pion-plus'], rate: '5.58%', note: 'τ mode' },
+        { products: ['pion-zero', 'electron', 'nu_e_bar'], rate: '5.07%', note: 'Ke3' },
+        { products: ['pion-zero', 'muon-minus', 'nu_mu_bar'], rate: '3.35%', note: 'Kμ3' },
+        { products: ['pion-minus', 'pion-zero', 'pion-zero'], rate: '1.76%', note: 'τ′ mode' },
+        { products: ['pion-minus', 'nu_mu', 'nu_mu_bar'], rate: '1.1 × 10⁻¹⁰', note: 'FCNC, ultra-rare' },
+      ],
+      'kaon-zero': [
+        { group: KS, products: ['pion-plus', 'pion-minus'], rate: '69.20%' },
+        { group: KS, products: ['pion-zero', 'pion-zero'], rate: '30.69%' },
+        { group: KS, products: ['pion-plus', 'pion-minus', 'photon'], rate: '0.18%' },
+        { group: KS, products: ['pion-minus', 'positron', 'nu_e'], rate: '7.04 × 10⁻⁴', note: 'semileptonic, π±e∓ν combined' },
+        { group: KS, products: ['pion-plus', 'electron', 'nu_e_bar'], rate: '7.04 × 10⁻⁴', note: 'semileptonic, π±e∓ν combined' },
+        { group: KL, products: ['pion-minus', 'positron', 'nu_e'], rate: '40.55%', note: 'β-decay, π±e∓ν combined' },
+        { group: KL, products: ['pion-plus', 'electron', 'nu_e_bar'], rate: '40.55%', note: 'β-decay, π±e∓ν combined' },
+        { group: KL, products: ['pion-minus', 'muon-plus', 'nu_mu'], rate: '27.04%', note: 'semileptonic' },
+        { group: KL, products: ['pion-plus', 'muon-minus', 'nu_mu_bar'], rate: '27.04%', note: 'semileptonic' },
+        { group: KL, products: ['pion-zero', 'pion-zero', 'pion-zero'], rate: '19.52%', note: 'neutral three-pion' },
+        { group: KL, products: ['pion-plus', 'pion-minus', 'pion-zero'], rate: '12.54%', note: 'charged three-pion' },
+        { group: KL, products: ['pion-plus', 'pion-minus'], rate: '0.197%', note: 'CP-violating' },
+        { group: KL, products: ['pion-zero', 'pion-zero'], rate: '0.086%', note: 'CP-violating' },
+        { group: KL, products: ['pion-zero', 'nu_mu', 'nu_mu_bar'], rate: '< 3.0 × 10⁻⁹', note: 'golden mode' },
+      ],
+    };
+    DECAYS['kaon-zero-bar'] = DECAYS['kaon-zero'];
+
+    // ---------------------------------------------------------------- constants
+    const SIZE = 7;
+    const SIDES = { near: 'Near side', far: 'Far side', neutral: 'Neutral' };
+    const NEUTRAL_ROW = 3;
+    const START_ORDER = ['kaon-zero', 'kaon-plus', 'pion-plus', 'pion-zero', 'pion-minus', 'kaon-minus', 'kaon-zero-bar'];
+    const DIRECTIONS = [
+      [-1, 0], [1, 0], [0, -1], [0, 1],
+      [-1, -1], [-1, 1], [1, -1], [1, 1],
+    ];
+
+    const boardEl = document.getElementById('board');
+    const flipBtn = document.getElementById('flipBtn');
+    const statusEl = document.getElementById('status');
+    const decayPanelEl = document.getElementById('decayPanel');
+    const resultSlotEl = document.getElementById('resultSlot');
+    const logEl = document.getElementById('log');
+
+    // ---------------------------------------------------------------- squares
+    const cells = [];
+    for (let row = 0; row < SIZE; row++) {
+      for (let col = 0; col < SIZE; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+        cell.setAttribute('role', 'gridcell');
+        cell.setAttribute('aria-rowindex', row + 1);
+        cell.setAttribute('aria-colindex', col + 1);
+        boardEl.appendChild(cell);
+        cells.push(cell);
+      }
+    }
+    const cellAt = (row, col) => cells[row * SIZE + col];
+
+    // ---------------------------------------------------------------- state
+    const grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(null));
+    let turn = 'near';
+    let selected = null;
+    let legalMoves = [];
+    let aim = null;
+    let winner = null;        // { side, reason }
+    const log = [];
+
+    // ---------------------------------------------------------------- helpers
+    const inBounds = (row, col) => row >= 0 && row < SIZE && col >= 0 && col < SIZE;
+    const opposite = (side) => (side === 'near' ? 'far' : 'near');
+    const annihilates = (a, b) => Boolean(a.anti) && a.anti === b.id && b.anti === a.id;
+    const isOffBoard = (id) => Boolean(OFF_BOARD[id]);
+    const particleOfId = (id) => particleOf(id);
+    const allPieces = () => grid.flat().filter(Boolean);
+    const countBySide = (side) => allPieces().filter((piece) => piece.side === side).length;
+
+    function makePiece(id, side, row, col) {
+      const species = SPECIES[id];
+      const el = document.createElement('div');
+      el.className = 'piece ' + side;
+      el.innerHTML = species.glyph;
+      el.title = species.label;
+      el.setAttribute('aria-label', `${species.label} (${SIDES[side].toLowerCase()})`);
+      cellAt(row, col).appendChild(el);
+      const piece = {
+        row, col, side, id,
+        anti: species.anti,
+        plain: species.plain,
+        label: species.label,
+        charge: species.charge,
+        stuck: false,
+        el,
+      };
+      grid[row][col] = piece;
+      return piece;
+    }
+
+    function placeStartingPosition() {
+      for (const row of [0, 6]) {
+        const side = row === 0 ? 'far' : 'near';
+        START_ORDER.forEach((id, col) => makePiece(id, side, row, col));
+      }
+      for (let col = 0; col < SIZE; col++) makePiece('electron', 'neutral', NEUTRAL_ROW, col);
+    }
+
+    function movePieceTo(piece, row, col) {
+      grid[piece.row][piece.col] = null;
+      grid[row][col] = piece;
+      piece.row = row;
+      piece.col = col;
+      cellAt(row, col).appendChild(piece.el);
+    }
+
+    function removePiece(piece) {
+      grid[piece.row][piece.col] = null;
+      piece.el.remove();
+    }
+
+    // ---------------------------------------------------------------- movement
+    function movesFrom(row, col) {
+      const piece = grid[row][col];
+      const moves = [];
+      if (!piece || piece.stuck) return moves;
+
+      for (const [dr, dc] of DIRECTIONS) {
+        let r = row + dr;
+        let c = col + dc;
+        while (inBounds(r, c)) {
+          const target = grid[r][c];
+          if (!target) {
+            moves.push({ row: r, col: c, annihilate: false });
+          } else {
+            if (annihilates(piece, target)) moves.push({ row: r, col: c, annihilate: true });
+            break;
+          }
+          r += dr;
+          c += dc;
+        }
+      }
+      return moves;
+    }
+
+    // Every empty square a product could reach from (row, col), used for the decay room rule.
+    function reachableSquares(row, col) {
+      let count = 0;
+      for (const [dr, dc] of DIRECTIONS) {
+        let r = row + dr;
+        let c = col + dc;
+        while (inBounds(r, c) && !grid[r][c]) { count += 1; r += dr; c += dc; }
+      }
+      return count;
+    }
+
+    // Farthest empty square along each line, given current occupancy.
+    function landingSquares(row, col) {
+      const out = [];
+      for (const [dr, dc] of DIRECTIONS) {
+        let r = row + dr;
+        let c = col + dc;
+        let last = null;
+        while (inBounds(r, c) && !grid[r][c]) {
+          last = { row: r, col: c };
+          r += dr;
+          c += dc;
+        }
+        if (last) out.push(last);
+      }
+      return out;
+    }
+
+    // ---------------------------------------------------------- electrostatics
+    // THE RULE (this function is the whole of it):
+    //  1. Trigger: a charged piece moves, or a charged decay product lands.
+    //  2. Two rings are read: the near ring, the eight squares the piece touches, and the
+    //     outer ring, the eight squares two steps out along the same lines. Nothing else
+    //     on the board reacts.
+    //  3. Only charged particles in those rings react; K0, K̄0 and pi0 are ignored.
+    //  4. Like charge in the near ring  -> pushed one square outward into the outer ring.
+    //     Opposite charge in the outer ring -> drawn one square inward into the near ring.
+    //     Opposite charge in the near ring -> nothing moves: they bind.
+    //     Like charge in the outer ring   -> nothing happens.
+    //  5. A step off the board never happens: that particle holds ground. A step onto a
+    //     square held by a particle that is staying put is blocked the same way. No
+    //     rerouting, sliding or second choice.
+    //  6. All steps are decided at the same time from the board as it was before any of
+    //     them moved, then applied together, so a particle shoved out and one drawn in
+    //     can pass through the same square (they swap). If two particles would land on
+    //     one square, neither moves. Bindings are resolved afterwards by updateStuck().
+    function electrostaticShift(mover) {
+      if (!mover.charge) return { pulled: [], pushed: [] };
+
+      const candidates = [];
+      for (const [dr, dc] of DIRECTIONS) {
+        for (const distance of [1, 2]) {
+          const r = mover.row + dr * distance;
+          const c = mover.col + dc * distance;
+          if (!inBounds(r, c)) continue;
+          const other = grid[r][c];
+          if (!other || !other.charge) continue;
+
+          const sameCharge = other.charge === mover.charge;
+          if (sameCharge && distance !== 1) continue;    // shoves come from the near ring only
+          if (!sameCharge && distance !== 2) continue;   // draws come from the outer ring only
+
+          const tr = other.row + (sameCharge ? dr : -dr);
+          const tc = other.col + (sameCharge ? dc : -dc);
+          if (!inBounds(tr, tc)) continue;
+          candidates.push({ piece: other, row: tr, col: tc, sameCharge });
+        }
+      }
+
+      // Fixed point: a candidate survives only while its target is empty or held by
+      // another particle that is leaving in this same pass. Dropping one can free a
+      // square for another, so repeat until nothing changes.
+      let active = candidates;
+      for (let guard = 0; guard <= SIZE; guard++) {
+        const counts = new Map();
+        for (const move of active) {
+          const key = `${move.row},${move.col}`;
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+        const leavers = new Set(active.map((move) => move.piece));
+        const next = active.filter((move) => {
+          if (counts.get(`${move.row},${move.col}`) > 1) return false;
+          const occupant = grid[move.row][move.col];
+          return !occupant || leavers.has(occupant);
+        });
+        if (next.length === active.length) break;
+        active = next;
+      }
+
+      // Apply together: vacate every square first, then place, so two particles can
+      // trade squares without overwriting each other.
+      for (const move of active) grid[move.piece.row][move.piece.col] = null;
+
+      const pulled = [];
+      const pushed = [];
+      for (const move of active) {
+        const piece = move.piece;
+        piece.row = move.row;
+        piece.col = move.col;
+        grid[move.row][move.col] = piece;
+        cellAt(move.row, move.col).appendChild(piece.el);
+        (move.sameCharge ? pushed : pulled).push(piece.plain);
+      }
+      return { pulled, pushed };
+    }
+
+    // Opposite charges in contact bind: no player can ever move them again, though
+    // electrostatic pulls and pushes can still drag them.
+    function updateStuck() {
+      const fresh = [];
+      const checked = new Set();
+      for (const piece of allPieces()) {
+        if (!piece.charge) continue;
+        for (const [dr, dc] of DIRECTIONS) {
+          const r = piece.row + dr;
+          const c = piece.col + dc;
+          if (!inBounds(r, c)) continue;
+          const other = grid[r][c];
+          if (!other || other.charge !== -piece.charge) continue;
+          const key = [`${piece.row},${piece.col}`, `${other.row},${other.col}`].sort().join('|');
+          if (checked.has(key)) continue;
+          checked.add(key);
+          if (!piece.stuck || !other.stuck) fresh.push(`${piece.plain} ↔ ${other.plain}`);
+          piece.stuck = true;
+          other.stuck = true;
+        }
+      }
+      return fresh;
+    }
+
+    // A side can still act if any piece can move or has a decay with room for it.
+    function hasAnyAction(side) {
+      return allPieces().some((piece) => {
+        if (piece.side !== side) return false;
+        if (movesFrom(piece.row, piece.col).length) return true;
+        return playableModes(piece).length > 0;
+      });
+    }
+
+    function playableModes(piece) {
+      const modes = DECAYS[piece.id] || [];
+      const room = reachableSquares(piece.row, piece.col);
+      return modes
+        .map((mode, index) => ({ mode, index, room, needed: mode.products.filter((id) => !isOffBoard(id)).length }))
+        .filter((entry) => entry.room >= entry.needed);
+    }
+
+    // ---------------------------------------------------------------- rendering
+    function render() {
+      for (const cell of cells) cell.classList.remove('move', 'annihilate', 'selected', 'aim');
+
+      for (const piece of allPieces()) {
+        piece.el.classList.toggle('movable', piece.side === turn && !aim && !winner && !piece.stuck);
+        piece.el.classList.toggle('stuck', piece.stuck && piece.side !== 'neutral');
+        piece.el.title = piece.stuck
+          ? `${piece.label} — bound to an opposite charge, cannot be moved by a player`
+          : piece.label;
+      }
+
+      if (aim && aim.candidates) {
+        for (const square of aim.candidates) cellAt(square.row, square.col).classList.add('aim');
+      } else if (selected) {
+        cellAt(selected.row, selected.col).classList.add('selected');
+        for (const move of legalMoves) {
+          cellAt(move.row, move.col).classList.add(move.annihilate ? 'annihilate' : 'move');
+        }
+      }
+
+      renderStatus();
+      renderPanel();
+      renderLog();
+    }
+
+    function renderStatus() {
+      const counts = `${countBySide('near')} vs ${countBySide('far')} · ${countBySide('neutral')} neutral`;
+      if (winner) {
+        statusEl.innerHTML = `Game over · ${counts}`;
+        return;
+      }
+      if (aim) {
+        const current = aim.boardProducts[aim.index];
+        const step = `product ${Math.min(aim.index + 1, aim.boardProducts.length)} of ${aim.boardProducts.length}`;
+        statusEl.innerHTML = aim.candidates && aim.candidates.length
+          ? `<span class="aimword">Aim ${particleOfId(current).plain}</span> · ${step} · click a blue square`
+          : `<span class="aimword">Decay in flight</span> · ${step}`;
+        return;
+      }
+      if (selected) {
+        const piece = grid[selected.row][selected.col];
+        const state = piece.stuck ? ' · <span style="color:#e8d67a">stuck</span>' : '';
+        statusEl.innerHTML = `<strong>${SIDES[turn]}</strong> to move · ${legalMoves.length} legal square${legalMoves.length === 1 ? '' : 's'} · ${counts}${state}`;
+        return;
+      }
+      statusEl.innerHTML = `<strong>${SIDES[turn]}</strong> to move · pick a piece · ${counts}`;
+    }
+
+    function renderPanel() {
+      resultSlotEl.innerHTML = winner
+        ? `<p class="result">${SIDES[winner.side]} wins<span>${winner.reason}</span></p>`
+        : '';
+
+      if (winner) {
+        decayPanelEl.innerHTML = '<p class="hint">Reload the page to play again.</p>';
+        return;
+      }
+
+      if (aim) {
+        const current = aim.boardProducts[aim.index];
+        const list = aim.boardProducts
+          .map((id, index) => `${particleOfId(id).plain}${index < aim.index ? ' ✓' : index === aim.index ? ' ←' : ''}`)
+          .join(' · ');
+        const spectators = aim.spectators.map((id) => particleOfId(id).plain).join(' + ');
+        decayPanelEl.innerHTML = `
+          <div class="aim-box">
+            <p class="section-title">Decaying ${aim.parent.plain} →</p>
+            <p class="target">${aim.mode.products.map((id) => particleOfId(id).glyph).join(' + ')}</p>
+            <p>${list}${spectators ? `<br>Off board: ${spectators}` : ''}</p>
+            <button class="ghost" data-cancel="1">Cancel decay</button>
+          </div>`;
+        return;
+      }
+
+      if (!selected) {
+        decayPanelEl.innerHTML = '<p class="hint">Select one of your pieces. A charged particle works on both rings at once: like charges in the squares it touches are pushed one square outward, opposite charges two steps out are drawn one square inward, and touching opposites bind instead of moving. A step that would leave the board or land on a particle that stays put does not happen. A decay costs the turn and needs enough empty squares for its products.</p>';
+        return;
+      }
+
+      const piece = grid[selected.row][selected.col];
+      const modes = DECAYS[piece.id] || [];
+      const chargeText = piece.charge === 0 ? 'neutral charge' : `charge ${piece.charge > 0 ? '+' : '−'}1`;
+
+      if (!modes.length) {
+        decayPanelEl.innerHTML = `<p class="hint"><strong>${piece.plain}</strong> (${piece.label}) · ${chargeText}. No decay channels here — muons, electrons and positrons are stable.${piece.stuck ? ' It is bound and cannot be moved by a player.' : ''}</p>`;
+        return;
+      }
+
+      let lastGroup = null;
+      const rows = modes
+        .map((mode, index) => {
+          let groupLabel = '';
+          if (mode.group && mode.group !== lastGroup) {
+            groupLabel = `<p class="group-label">${mode.group} channel</p>`;
+            lastGroup = mode.group;
+          }
+          const needed = mode.products.filter((id) => !isOffBoard(id)).length;
+          const room = reachableSquares(piece.row, piece.col);
+          const playable = room >= needed;
+          const products = mode.products.map((id) => particleOfId(id).glyph).join(' + ');
+          const notes = [mode.note, !playable ? `needs ${needed} free squares, ${room} open` : '']
+            .filter(Boolean)
+            .map((text) => `<span class="row-note${!playable && text.startsWith('needs') ? ' blocked' : ''}">${text}</span>`)
+            .join('');
+          return `${groupLabel}
+            <button class="decay-row" data-mode="${index}" ${playable ? '' : 'disabled'}>
+              <span class="products">${products}${notes}</span>
+              <span class="rate">${mode.rate}</span>
+            </button>`;
+        })
+        .join('');
+
+      decayPanelEl.innerHTML = `
+        <p class="section-title">Decay channels · ${piece.plain} · ${chargeText}${piece.stuck ? ' · stuck' : ''}</p>
+        <div class="decay-list">${rows}</div>`;
+    }
+
+    function renderLog() {
+      logEl.innerHTML = log.map((entry) => `<li>${entry}</li>`).join('');
+    }
+
+    function pushLog(html) {
+      log.unshift(html);
+      if (log.length > 7) log.pop();
+    }
+
+    // ---------------------------------------------------------------- end of turn
+    function finishTurn(justAnnihilated) {
+      // 1. Annihilating the enemy K0 wins outright.
+      const k0 = justAnnihilated.find((piece) => piece.id === 'kaon-zero');
+      if (k0) {
+        winner = { side: opposite(k0.side), reason: `${SIDES[k0.side]}'s K⁰ was annihilated` };
+        render();
+        return;
+      }
+
+      // 2. Otherwise the side on move loses if it has nothing legal to do.
+      turn = opposite(turn);
+      if (!hasAnyAction(turn)) {
+        winner = { side: opposite(turn), reason: `${SIDES[turn]} has no move and no decay left` };
+      }
+      render();
+    }
+
+    // ---------------------------------------------------------------- decay flow
+    function decayRoomNeeded(piece, mode) {
+      return mode.products.filter((id) => !isOffBoard(id)).length;
+    }
+
+    function startDecay(modeIndex) {
+      if (winner || aim || !selected) return;
+      const piece = grid[selected.row][selected.col];
+      const mode = (DECAYS[piece.id] || [])[modeIndex];
+      if (!piece || !mode) return;
+      if (reachableSquares(piece.row, piece.col) < decayRoomNeeded(piece, mode)) return;
+
+      const boardProducts = mode.products.filter((id) => !isOffBoard(id));
+      const spectators = mode.products.filter(isOffBoard);
+
+      const snapshot = allPieces().map((entry) => ({ piece: entry, row: entry.row, col: entry.col, stuck: entry.stuck }));
+
+      removePiece(piece);
+      aim = {
+        parent: { row: piece.row, col: piece.col, side: piece.side, id: piece.id, plain: piece.plain },
+        mode, boardProducts, spectators, index: 0, placed: [], candidates: null, snapshot,
+      };
+      selected = null;
+      legalMoves = [];
+      advanceAim();
+    }
+
+    function advanceAim() {
+      while (aim && aim.index < aim.boardProducts.length) {
+        const candidates = landingSquares(aim.parent.row, aim.parent.col);
+        if (candidates.length) {
+          aim.candidates = candidates;
+          render();
+          return;
+        }
+        const id = aim.boardProducts[aim.index];
+        const origin = aim.parent;
+        if (!grid[origin.row][origin.col]) {
+          placeProduct(id, origin.side, origin.row, origin.col);
+        } else {
+          aim.placed.push({ id, row: null, col: null });
+        }
+        aim.index += 1;
+      }
+      finishAim();
+    }
+
+    // Every particle on the board takes part in electrostatics, including products
+    // that a decay has just ejected, whatever side or species they belong to.
+    function placeProduct(id, side, row, col) {
+      const piece = makePiece(id, side, row, col);
+      aim.placed.push({ id, row, col });
+
+      const { pulled, pushed } = electrostaticShift(piece);
+      const freshStuck = updateStuck();
+      const notes = [];
+      if (pulled.length) notes.push(`${pulled.join(' + ')} pulled in`);
+      if (pushed.length) notes.push(`${pushed.join(' + ')} pushed out`);
+      if (freshStuck.length) notes.push(`stuck: ${freshStuck.join(', ')}`);
+      if (notes.length) pushLog(`${piece.plain} lands · ${notes.join(' · ')}`);
+      return piece;
+    }
+
+    function finishAim() {
+      if (!aim) return;
+      const { parent, mode, placed, spectators } = aim;
+
+      const productsHtml = mode.products.map((id) => particleOfId(id).plain).join(' + ');
+      const stuck = placed.filter((entry) => entry.row === null).length;
+      const notes = [];
+      if (spectators.length) notes.push(`${spectators.map((id) => particleOfId(id).plain).join(' + ')} not placed`);
+      if (stuck) notes.push(`${stuck} product${stuck === 1 ? '' : 's'} absorbed at the decay site`);
+
+      pushLog(
+        `<span class="side-name">${SIDES[parent.side]}</span> ${parent.plain} → ${productsHtml}` +
+        `<span class="nu">${mode.rate}${notes.length ? ' · ' + notes.join(' · ') : ''}</span>`
+      );
+
+      aim = null;
+      const freshStuck = updateStuck();
+      if (freshStuck.length) pushLog(`Stuck from contact: ${freshStuck.join(', ')}`);
+      finishTurn([]);
+    }
+
+    // Cancel rewinds the whole decay exactly: products and every electrostatic
+    // displacement they caused are undone from the snapshot taken at the start.
+    function cancelAim() {
+      if (!aim) return;
+      const { parent, snapshot } = aim;
+      const keep = new Set(snapshot.map((entry) => entry.piece));
+
+      for (const piece of allPieces()) {
+        if (!keep.has(piece)) removePiece(piece);
+      }
+
+      for (let row = 0; row < SIZE; row++) {
+        for (let col = 0; col < SIZE; col++) grid[row][col] = null;
+      }
+      for (const entry of snapshot) {
+        entry.piece.row = entry.row;
+        entry.piece.col = entry.col;
+        entry.piece.stuck = entry.stuck;
+        cellAt(entry.row, entry.col).appendChild(entry.piece.el);
+        grid[entry.row][entry.col] = entry.piece;
+      }
+
+      aim = null;
+      selected = { row: parent.row, col: parent.col };
+      legalMoves = movesFrom(parent.row, parent.col);
+      render();
+    }
+
+    // ---------------------------------------------------------------- interaction
+    decayPanelEl.addEventListener('click', (event) => {
+      const cancel = event.target.closest('[data-cancel]');
+      if (cancel) { cancelAim(); return; }
+
+      const row = event.target.closest('[data-mode]');
+      if (row && !row.disabled) startDecay(Number(row.dataset.mode));
+    });
+
+    // Turning the board over is purely visual: squares keep their grid coordinates,
+    // so clicks, moves and decays behave exactly as before.
+    flipBtn.addEventListener('click', () => {
+      const flipped = boardEl.classList.toggle('flipped');
+      flipBtn.setAttribute('aria-pressed', String(flipped));
+      flipBtn.textContent = flipped ? 'Flip board back' : 'Flip board';
+    });
+
+    boardEl.addEventListener('click', (event) => {
+      if (winner) return;
+      const cell = event.target.closest('.cell');
+      if (!cell) return;
+
+      const index = cells.indexOf(cell);
+      const row = Math.floor(index / SIZE);
+      const col = index % SIZE;
+
+      if (aim) {
+        if (!aim.candidates) return;
+        const target = aim.candidates.find((square) => square.row === row && square.col === col);
+        if (!target) return;
+        const id = aim.boardProducts[aim.index];
+        placeProduct(id, aim.parent.side, row, col);
+        aim.index += 1;
+        aim.candidates = null;
+        advanceAim();
+        return;
+      }
+
+      const piece = grid[row][col];
+      const target = legalMoves.find((move) => move.row === row && move.col === col);
+
+      if (selected && target) {
+        const moving = grid[selected.row][selected.col];
+        const annihilated = [];
+
+        if (target.annihilate) {
+          const partner = grid[row][col];
+          annihilated.push(partner, moving);
+          removePiece(partner);
+          removePiece(moving);
+          pushLog(`<span class="side-name">${SIDES[moving.side]}</span> ${moving.plain} + ${partner.plain} annihilated`);
+        } else {
+          movePieceTo(moving, row, col);
+        }
+
+        selected = null;
+        legalMoves = [];
+
+        if (!annihilated.length) {
+          const { pulled, pushed } = electrostaticShift(moving);
+          const parts = [];
+          if (pulled.length) parts.push(`${pulled.join(' + ')} pulled in`);
+          if (pushed.length) parts.push(`${pushed.join(' + ')} pushed out`);
+          if (parts.length) {
+            pushLog(`<span class="side-name">${SIDES[moving.side]}</span> charge · ${parts.join(' · ')}`);
+          }
+          const freshStuck = updateStuck();
+          if (freshStuck.length) pushLog(`Stuck from contact: ${freshStuck.join(', ')}`);
+        }
+
+        finishTurn(annihilated);
+        return;
+      }
+
+      if (piece && piece.side === turn) {
+        if (selected && selected.row === row && selected.col === col) {
+          selected = null;
+          legalMoves = [];
+        } else {
+          selected = { row, col };
+          legalMoves = movesFrom(row, col);
+        }
+        render();
+        return;
+      }
+
+      selected = null;
+      legalMoves = [];
+      render();
+    });
+
+    placeStartingPosition();
+    updateStuck();
+    render();
+  </script>
 </body>
 </html>
