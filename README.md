@@ -1,25 +1,34 @@
-# Particle — 7×7 chain reaction
+# Particle Game — 7×7 board
 
-A two-player board game about particle physics you can play in a browser. Every cell holds
-particles, and a cell splits when it is full: **2** in a corner, **3** on an edge, **4** inside.
-A split fires one particle into each orthogonal neighbour and recolours it for the player who
-split — so one placement can cascade across the board.
+A two-player turn-based board game about particle physics, played in the browser. Everything
+lives in one self-contained `index.html` — no build step, no dependencies.
+
+## The board
+
+A 7×7 grid. The near side and the far side each start with one row of particles
+(K⁰, K⁺, π⁺, π⁰, π⁻, K⁻, K̄⁰), and a neutral row of seven electrons sits across the middle.
 
 ## Rules
 
-- Players alternate. On your turn place one particle in an empty cell, or in a cell you already own.
-- When a cell reaches capacity it splits: its particles are spent, and each orthogonal neighbour
-  gains one particle of your colour.
-- A cell that fills from a split splits as well — the whole wave resolves before the turn ends.
-- You lose when you have no particles left on the board. Wipe out the other colour to win.
-
-The 7×7 board has 4 corner cells (capacity 2), 20 edge cells (capacity 3) and 25 interior cells
-(capacity 4). Corners are cheap to fire but easy to lose; interior cells hold more but need three
-placements to split.
+- Pieces move like queens — any distance along a rank, file or diagonal — and cannot pass
+  through other pieces.
+- Pieces are never captured. Antiparticle pairs (K⁰/K̄⁰, K⁺/K⁻, π⁺/π⁻, μ⁺/μ⁻, e⁺/e⁻)
+  annihilate on contact. π⁰ has no partner and only blocks; γ leaves the board as light, and
+  neutrinos never land on it.
+- A turn is either one queen move, or one decay. Decays send the parent off the board and eject
+  its products as far as possible in the directions you choose, one product at a time; a channel
+  is only offered when there are enough free squares for its board products.
+- Charged particles act on two rings. A like charge in the near ring (the eight squares it
+  touches) is pushed one square outward into the outer ring; an opposite charge in the outer
+  ring (two steps out) is drawn one square inward. Both resolve at the same time from the board
+  as it was, so a shoved particle and a drawn-in one can trade squares. Touching opposites bind
+  instead of moving, and a step that would leave the board or land on a particle staying put
+  does not happen.
+- Bound particles are stuck: no player can move them again, though the field can still drag
+  them, and they may still decay.
+- You win by annihilating the enemy K⁰, or by leaving the opponent with no move and no decay.
 
 ## Run locally
-
-No build step and no dependencies — plain HTML, CSS and JavaScript. Serve the folder:
 
 ```sh
 python3 -m http.server 8000
@@ -28,6 +37,6 @@ python3 -m http.server 8000
 
 ## Deployment
 
-`.github/workflows/pages.yml` publishes `index.html`, `styles.css` and `game.js` to GitHub Pages on
-every push to `main` (and on manual dispatch). The live game is at
+`.github/workflows/pages.yml` publishes `index.html` to GitHub Pages on every push to `main`
+(and on manual dispatch). The live game is at
 `https://jason1015-coder.github.io/particle-game/`.

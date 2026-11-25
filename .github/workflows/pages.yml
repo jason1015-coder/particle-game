@@ -24,7 +24,7 @@ jobs:
       - name: Prepare static site
         run: |
           mkdir -p dist
-          cp index.html styles.css game.js dist/
+          cp index.html dist/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
