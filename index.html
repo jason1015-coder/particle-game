@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Particle Game — Singularity</title>
+<meta name="description" content="A small browser game built on real particle physics. Grow a singularity by absorbing matter." />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div class="vignette"></div>
+
+  <header class="hud">
+    <div class="stat">
+      <span class="label">Mass</span>
+      <span class="value" id="hud-mass">14</span>
+    </div>
+    <div class="stat">
+      <span class="label">Score</span>
+      <span class="value" id="hud-score">0</span>
+    </div>
+    <div class="stat">
+      <span class="label">Wave</span>
+      <span class="value" id="hud-wave">1</span>
+    </div>
+    <div class="stat stat-wide">
+      <span class="label">Energy</span>
+      <span class="bar"><span class="bar-fill" id="hud-energy"></span></span>
+    </div>
+    <div class="stat">
+      <span class="label">Best</span>
+      <span class="value dim" id="hud-best">0</span>
+    </div>
+  </header>
+
+  <div class="overlay" id="overlay">
+    <div class="panel">
+      <h1 id="overlay-title">SINGULARITY</h1>
+      <p id="overlay-body">
+        Move with the mouse or <kbd>WASD</kbd>. Hold <kbd>click</kbd> or <kbd>space</kbd> to overcharge
+        your gravity well and drag matter in.
+      </p>
+      <ul class="legend">
+        <li><i class="dot mote"></i> Blue motes feed you</li>
+        <li><i class="dot flare"></i> Gold flares refill energy</li>
+        <li><i class="dot hazard"></i> Red anti-matter burns your mass</li>
+      </ul>
+      <button id="start-btn" type="button">Engage</button>
+      <p class="hint">Motes clump into bigger ones — a fat clump is one big meal, and one big risk.</p>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>
